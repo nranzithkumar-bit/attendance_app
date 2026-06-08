@@ -36,56 +36,44 @@ def init_db():
             time TEXT NOT NULL
         )
     """)
-    
-    # Try reading and parsing local Excel data to Supabase
-    try:
-        import pandas as pd
-        if os.path.exists("students.xlsx"):
-            students_df = pd.read_excel("students.xlsx")
-            
-            # Clean column strings to handle variations gracefully
-            students_df.columns = [str(col).strip().lower().replace(" ", "_") for col in students_df.columns]
-            
-            # Identify the unique identifier column
-            id_col = None
-            for col in students_df.columns:
-                if col in ['student_id', 'roll_no', 'regd_no', 'pin', 'id', 'admission_no', 'rollno', 'regdno']:
-                    id_col = col
-                    break
-            
-            if id_col:
-                students_df = students_df.rename(columns={id_col: 'student_id'})
-                print(f"✅ Dynamic Mapper: Using '{id_col}' as core 'student_id'")
-            else:
-                print("⚠️ System Warning: No explicit ID column found in Excel file.")
-            
-            # Re-create the students reference table on Supabase
-            cursor.execute("DROP TABLE IF EXISTS students CASCADE;")
-            
-            # Dynamically compile the CREATE TABLE columns based on Excel structure
-            columns_schema = ", ".join([f"{col} TEXT" for col in students_df.columns if col != 'student_id'])
-            create_query = f"CREATE TABLE students (student_id TEXT PRIMARY KEY, {columns_schema});"
-            cursor.execute(create_query)
-            
-            # Stream rows up to Supabase using bulk insert formatting
-            for _, row in students_df.iterrows():
-                row_dict = row.to_dict()
-                cols = list(row_dict.keys())
-                vals = [str(row_dict[c]).strip() if pd.notnull(row_dict[c]) else "" for c in cols]
-                
-                placeholders = ", ".join(["%s"] * len(cols))
-                insert_query = f"INSERT INTO students ({', '.join(cols)}) VALUES ({placeholders}) ON CONFLICT (student_id) DO NOTHING;"
-                cursor.execute(insert_query, vals)
-                
-            print("🚀 Supabase Database initialized and students records synced cleanly!")
-        else:
-            print("ℹ️ Note: students.xlsx not detected locally. Using existing cloud architecture.")
-    except Exception as e:
-        print(f"Excel sync notice: {e}")
         
     conn.commit()
     cursor.close()
     conn.close()
+
+
+# ==================================
+# PUT student_count HERE
+# ==================================
+@app.route('/student_count')
+def student_count():
+    conn = get_db_connection()
+
+    if not conn:
+        return "Database connection failed"
+
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM students")
+    count = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    return str(count)
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 @app.route('/', methods=['GET'])
 def index():
