@@ -100,7 +100,7 @@ def log_attendance():
 
     if student:
         now_ist = get_ist_now()
-        date_str = now_ist.strftime('%Y-%m-%d')
+        date_str = now_ist.strftime('%d-%m-%Y')
         time_str = now_ist.strftime('%I:%M %p')
 
         # Check already logged today
@@ -205,20 +205,40 @@ def export_csv():
     cursor = conn.cursor()
     cursor.execute("""
         SELECT l.student_id, s.student_name, s.branch, s.section,
-               s.phone, l.date, l.time
+               s.phone,
+               COUNT(l.id) as late_days,
+               MAX(l.date) as last_date,
+               MAX(l.time) as last_time
         FROM late_entries l
         JOIN students s ON l.student_id = s.student_id
-        ORDER BY l.date DESC, l.time DESC
+        GROUP BY l.student_id, s.student_name, s.branch, s.section, s.phone
+        ORDER BY late_days DESC
     """)
     records = cursor.fetchall()
     cursor.close()
     conn.close()
-    csv_output = "Student ID,Student Name,Branch,Section,Phone,Date,Time\n"
+
+    def get_action_status(n):
+        if n == 1: return "1st Warning"
+        elif n == 2: return "2nd Warning"
+        else: return "Pay Rs.100 Fine"
+
+    csv_output = "Student ID,Student Name,Branch,Section,Phone,Late Days,Action Status,Last Date,Last Time\n"
     for row in records:
-        csv_output += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['phone']},{row['date']},{row['time']}\n"
+        csv_output += (
+            f"{row['student_id']},"
+            f"{row['student_name']},"
+            f"{row['branch']},"
+            f"{row['section']},"
+            f"{row['phone']},"
+            f"{row['late_days']},"
+            f"{get_action_status(row['late_days'])},"
+            f"{row['last_date']},"
+            f"{row['last_time']}\n"
+        )
     now_ist = get_ist_now()
     return Response(csv_output, mimetype="text/csv",
-        headers={"Content-disposition": f"attachment; filename=late_records_{now_ist.strftime('%Y-%m-%d')}.csv"})
+        headers={"Content-disposition": f"attachment; filename=late_records_{now_ist.strftime('%d-%m-%Y')}.csv"})
 
 
 @app.route('/student_count')
