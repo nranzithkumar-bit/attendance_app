@@ -38,7 +38,6 @@
                            class="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all placeholder:text-slate-400"
                            placeholder="Enter Roll Number / ID...">
                 </div>
-
                 <button type="submit" id="submit-btn"
                         class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow transition-all flex justify-center items-center gap-2 cursor-pointer">
                     <span>Log Entry & Verify</span>
@@ -69,29 +68,32 @@
                 <table class="w-full text-left border-collapse">
                     <thead>
                         <tr class="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
-                            <th class="py-3 px-4">Student ID</th>
-                            <th class="py-3 px-4">Student Name</th>
-                            <th class="py-3 px-4">Branch</th>
-                            <th class="py-3 px-4">Sec</th>
-                            <th class="py-3 px-4 text-center">Late Days</th>
-                            <th class="py-3 px-4">Action Status</th>
-                            <th class="py-3 px-4">Last Entry Time</th>
+                            <th class="py-3 px-3">ID</th>
+                            <th class="py-3 px-3">Student Name</th>
+                            <th class="py-3 px-3">Branch</th>
+                            <th class="py-3 px-3">Sec</th>
+                            <th class="py-3 px-3">Phone</th>
+                            <th class="py-3 px-3 text-center">Late Days</th>
+                            <th class="py-3 px-3">Action Status</th>
+                            <th class="py-3 px-3">Last Date</th>
+                            <th class="py-3 px-3">Last Time (IST)</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100 text-sm">
                         {% if entries %}
                             {% for row in entries %}
                             <tr class="hover:bg-slate-50 transition-colors">
-                                <td class="py-3 px-4 font-mono font-semibold text-slate-700">{{ row.student_id }}</td>
-                                <td class="py-3 px-4 font-medium text-slate-900">{{ row.student_name or 'Unknown' }}</td>
-                                <td class="py-3 px-4 text-slate-600">{{ row.branch or '-' }}</td>
-                                <td class="py-3 px-4 text-slate-600 text-center">{{ row.section or '-' }}</td>
-                                <td class="py-3 px-4 text-center">
+                                <td class="py-3 px-3 font-mono font-semibold text-slate-700">{{ row.student_id }}</td>
+                                <td class="py-3 px-3 font-medium text-slate-900">{{ row.student_name or 'Unknown' }}</td>
+                                <td class="py-3 px-3 text-slate-600">{{ row.branch or '-' }}</td>
+                                <td class="py-3 px-3 text-slate-600 text-center">{{ row.section or '-' }}</td>
+                                <td class="py-3 px-3 text-slate-600">{{ row.phone or '-' }}</td>
+                                <td class="py-3 px-3 text-center">
                                     <span class="bg-red-50 text-red-700 border border-red-100 text-xs font-bold px-2 py-0.5 rounded">
                                         {{ row.late_days }} Days
                                     </span>
                                 </td>
-                                <td class="py-3 px-4">
+                                <td class="py-3 px-3">
                                     {% if row.late_days == 1 %}
                                         <span class="bg-yellow-50 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded border border-yellow-200">1st Warning</span>
                                     {% elif row.late_days == 2 %}
@@ -100,12 +102,13 @@
                                         <span class="bg-red-50 text-red-700 text-xs font-bold px-2 py-0.5 rounded border border-red-200">Pay ₹100 Fine</span>
                                     {% endif %}
                                 </td>
-                                <td class="py-3 px-4 text-xs font-medium text-slate-500">{{ row.last_late_time }}</td>
+                                <td class="py-3 px-3 text-xs font-medium text-slate-600">{{ row.last_date or '-' }}</td>
+                                <td class="py-3 px-3 text-xs font-medium text-slate-500">{{ row.last_late_time or '-' }}</td>
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="7" class="text-center py-12 text-slate-400 font-medium">
+                                <td colspan="9" class="text-center py-12 text-slate-400 font-medium">
                                     No late entries logged today.
                                 </td>
                             </tr>
@@ -142,7 +145,6 @@
             .then(res => res.json())
             .then(data => {
                 statusCard.classList.remove("hidden");
-
                 if (data.success) {
                     statusCard.className = "mt-6 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800";
                     statusMsg.innerText = data.message;

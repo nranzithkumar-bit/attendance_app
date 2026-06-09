@@ -2,6 +2,7 @@ import os
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
+import pytz
 from flask import Flask, render_template, request, jsonify, Response
 import openpyxl
 
@@ -9,18 +10,25 @@ app = Flask(__name__)
 
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
+# India Standard Time
+IST = pytz.timezone('Asia/Kolkata')
+
+def get_ist_now():
+    """Returns current datetime in IST timezone."""
+    return datetime.now(IST)
+
 def get_db_connection():
     try:
         conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
         return conn
     except Exception as e:
-        print(f"❌ Connection Error: {e}")
+        print(f"Connection Error: {e}")
         return None
 
 def init_db():
     conn = get_db_connection()
     if not conn:
-        print("⚠️ Skipping init: No connection.")
+        print("Skipping init: No connection.")
         return
     cursor = conn.cursor()
     cursor.execute("""
@@ -43,9 +51,8 @@ def init_db():
     conn.commit()
     cursor.close()
     conn.close()
-    print("✅ Database initialized successfully!")
+    print("Database initialized successfully!")
 
-# Run on startup
 init_db()
 
 # =====================================================================
@@ -60,9 +67,10 @@ def index():
         cursor = conn.cursor()
         cursor.execute('''
             SELECT le.student_id, s.student_name, s.branch, s.section,
+                   s.phone,
                    COUNT(le.id) as late_days,
-                   MAX(le.time) as last_late_time,
-                   s.phone
+                   MAX(le.date) as last_date,
+                   MAX(le.time) as last_late_time
             FROM late_entries le
             LEFT JOIN students s ON le.student_id = s.student_id
             GROUP BY le.student_id, s.student_name, s.branch, s.section, s.phone
@@ -91,9 +99,9 @@ def log_attendance():
     student = cursor.fetchone()
 
     if student:
-        now = datetime.now()
-        date_str = now.strftime('%Y-%m-%d')
-        time_str = now.strftime('%I:%M %p')
+        now_ist = get_ist_now()
+        date_str = now_ist.strftime('%Y-%m-%d')
+        time_str = now_ist.strftime('%I:%M %p')
 
         # Check already logged today
         cursor.execute(
@@ -116,7 +124,6 @@ def log_attendance():
         )
         conn.commit()
 
-        # Count total late days
         cursor.execute(
             "SELECT COUNT(*) as cnt FROM late_entries WHERE student_id = %s",
             (student_id,)
@@ -197,7 +204,8 @@ def export_csv():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
-        SELECT l.student_id, s.student_name, s.branch, s.section, l.date, l.time
+        SELECT l.student_id, s.student_name, s.branch, s.section,
+               s.phone, l.date, l.time
         FROM late_entries l
         JOIN students s ON l.student_id = s.student_id
         ORDER BY l.date DESC, l.time DESC
@@ -205,11 +213,12 @@ def export_csv():
     records = cursor.fetchall()
     cursor.close()
     conn.close()
-    csv_output = "Student ID,Student Name,Branch,Section,Date,Time\n"
+    csv_output = "Student ID,Student Name,Branch,Section,Phone,Date,Time\n"
     for row in records:
-        csv_output += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['date']},{row['time']}\n"
+        csv_output += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['phone']},{row['date']},{row['time']}\n"
+    now_ist = get_ist_now()
     return Response(csv_output, mimetype="text/csv",
-        headers={"Content-disposition": f"attachment; filename=late_records_{datetime.now().strftime('%Y-%m-%d')}.csv"})
+        headers={"Content-disposition": f"attachment; filename=late_records_{now_ist.strftime('%Y-%m-%d')}.csv"})
 
 
 @app.route('/student_count')
