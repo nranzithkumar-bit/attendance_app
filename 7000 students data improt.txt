@@ -1,0 +1,15 @@
+
+# This is for import all 7000 students data importing from students.xlsx to render to supabase
+
+https://diet.professionalbird.com/import-students?key=diet2025
+
+
+
+
+
+Next Steps When Ready
+
+Replace students.xlsx with your real 7000 student data → push to GitHub → visit /import-students?key=diet2025
+Share this URL with PET masters at DIET gate:
+
+https://diet.professionalbird.com

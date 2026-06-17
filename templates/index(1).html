@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIET - Campus Entry Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen">
+
+    <header class="bg-gradient-to-r from-blue-700 to-indigo-800 text-white shadow-md px-6 py-5 flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold tracking-wide">DIET ATTENDANCE MANAGEMENT SYSTEM</h1>
+            <p class="text-blue-100 text-sm mt-0.5">Dhanekula Institute of Engineering and Technology, Vijayawada</p>
+        </div>
+        <div class="flex gap-3">
+            <a href="/export" class="bg-green-500 hover:bg-green-600 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+                📥 Download CSV
+            </a>
+            <div class="bg-white/10 px-4 py-2 rounded-lg text-sm font-semibold border border-white/20">
+                🏫 Main Entrance Gate
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Entry Log Panel -->
+        <section class="bg-white rounded-xl shadow border border-slate-200 p-6 h-fit">
+            <h2 class="text-lg font-bold text-slate-900 border-b border-slate-100 pb-3 mb-4">📋 Log Late Entry</h2>
+
+            <form id="attendance-form" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-semibold uppercase tracking-wider text-slate-500 mb-1.5">
+                        Scan Barcode or Type Student ID
+                    </label>
+                    <input type="text" id="student_id" name="student_id" autocomplete="off" required autofocus
+                           class="w-full bg-slate-50 border border-slate-300 rounded-lg px-4 py-3 text-lg font-mono focus:outline-none focus:ring-2 focus:ring-blue-600 focus:border-blue-600 transition-all placeholder:text-slate-400"
+                           placeholder="Enter Roll Number / ID...">
+                </div>
+
+                <button type="submit" id="submit-btn"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg shadow transition-all flex justify-center items-center gap-2 cursor-pointer">
+                    <span>Log Entry & Verify</span>
+                </button>
+            </form>
+
+            <div id="status-card" class="mt-6 p-4 rounded-xl border hidden transition-all">
+                <p id="status-msg" class="text-sm font-bold mb-2"></p>
+                <div id="student-details" class="text-xs space-y-1 text-slate-600 hidden">
+                    <p><strong>Name:</strong> <span id="det-name"></span></p>
+                    <p><strong>Branch:</strong> <span id="det-branch"></span></p>
+                    <p><strong>Section:</strong> <span id="det-section"></span></p>
+                    <p><strong>Phone:</strong> <span id="det-phone"></span></p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Late Entry Logs -->
+        <section class="bg-white rounded-xl shadow border border-slate-200 p-6 lg:col-span-2 flex flex-col min-h-[450px]">
+            <div class="flex justify-between items-center border-b border-slate-100 pb-3 mb-4">
+                <h2 class="text-lg font-bold text-slate-900">⏰ Continuous Late Comers Tracker</h2>
+                <span class="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-200">
+                    Live Tracking
+                </span>
+            </div>
+
+            <div class="overflow-x-auto rounded-lg border border-slate-200 flex-1">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-600 uppercase text-[10px] font-bold tracking-wider border-b border-slate-200">
+                            <th class="py-3 px-4">Student ID</th>
+                            <th class="py-3 px-4">Student Name</th>
+                            <th class="py-3 px-4">Branch</th>
+                            <th class="py-3 px-4">Sec</th>
+                            <th class="py-3 px-4 text-center">Late Days</th>
+                            <th class="py-3 px-4">Action Status</th>
+                            <th class="py-3 px-4">Last Entry Time</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-sm">
+                        {% if entries %}
+                            {% for row in entries %}
+                            <tr class="hover:bg-slate-50 transition-colors">
+                                <td class="py-3 px-4 font-mono font-semibold text-slate-700">{{ row.student_id }}</td>
+                                <td class="py-3 px-4 font-medium text-slate-900">{{ row.student_name or 'Unknown' }}</td>
+                                <td class="py-3 px-4 text-slate-600">{{ row.branch or '-' }}</td>
+                                <td class="py-3 px-4 text-slate-600 text-center">{{ row.section or '-' }}</td>
+                                <td class="py-3 px-4 text-center">
+                                    <span class="bg-red-50 text-red-700 border border-red-100 text-xs font-bold px-2 py-0.5 rounded">
+                                        {{ row.late_days }} Days
+                                    </span>
+                                </td>
+                                <td class="py-3 px-4">
+                                    {% if row.late_days == 1 %}
+                                        <span class="bg-yellow-50 text-yellow-700 text-xs font-bold px-2 py-0.5 rounded border border-yellow-200">1st Warning</span>
+                                    {% elif row.late_days == 2 %}
+                                        <span class="bg-orange-50 text-orange-700 text-xs font-bold px-2 py-0.5 rounded border border-orange-200">2nd Warning</span>
+                                    {% else %}
+                                        <span class="bg-red-50 text-red-700 text-xs font-bold px-2 py-0.5 rounded border border-red-200">Pay ₹100 Fine</span>
+                                    {% endif %}
+                                </td>
+                                <td class="py-3 px-4 text-xs font-medium text-slate-500">{{ row.last_late_time }}</td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center py-12 text-slate-400 font-medium">
+                                    No late entries logged today.
+                                </td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const form = document.getElementById("attendance-form");
+        const studentInput = document.getElementById("student_id");
+        const submitButton = document.getElementById("submit-btn");
+        const statusCard = document.getElementById("status-card");
+        const statusMsg = document.getElementById("status-msg");
+        const studentDetails = document.getElementById("student-details");
+
+        form.addEventListener("submit", function(event) {
+            event.preventDefault();
+            const studentIdValue = studentInput.value.trim();
+            if (!studentIdValue) return;
+
+            submitButton.disabled = true;
+            submitButton.innerText = "Processing...";
+
+            fetch("/log_attendance", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ student_id: studentIdValue })
+            })
+            .then(res => res.json())
+            .then(data => {
+                statusCard.classList.remove("hidden");
+
+                if (data.success) {
+                    statusCard.className = "mt-6 p-4 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800";
+                    statusMsg.innerText = data.message;
+                    document.getElementById("det-name").innerText = data.student_info.student_name || "N/A";
+                    document.getElementById("det-branch").innerText = data.student_info.branch || "N/A";
+                    document.getElementById("det-section").innerText = data.student_info.section || "N/A";
+                    document.getElementById("det-phone").innerText = data.student_info.phone || "N/A";
+                    studentDetails.classList.remove("hidden");
+                    studentInput.value = "";
+                    studentInput.focus();
+                    setTimeout(() => { window.location.reload(); }, 1500);
+                } else {
+                    statusCard.className = "mt-6 p-4 rounded-xl border bg-rose-50 border-rose-200 text-rose-800";
+                    statusMsg.innerText = data.message;
+                    studentDetails.classList.add("hidden");
+                    studentInput.select();
+                }
+            })
+            .catch(err => {
+                alert("Server communication error.");
+                console.error(err);
+            })
+            .finally(() => {
+                submitButton.disabled = false;
+                submitButton.innerText = "Log Entry & Verify";
+            });
+        });
+    });
+    </script>
+</body>
+</html>
