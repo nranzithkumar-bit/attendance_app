@@ -52,19 +52,20 @@ def seed_students_from_excel():
     cursor = conn.cursor()
 
     try:
-        # Loop through each student in your Excel rows
+	# Loop through each student in your Excel rows
         for index, row in df.iterrows():
-            # Adjust column names inside [''] if they are named differently in your sheet
-            student_id = str(row['student_id']).strip().upper()
-            name = str(row['name']).strip()
-            phone = str(row['phone']).strip() if 'phone' in df.columns else ""
+            # These must match your new ALL-CAPS Excel column headers exactly!
+            student_id = str(row['STUDENT_ID']).strip().upper()
+            name = str(row['STUDENT_NAME']).strip()
+            phone = str(row['PHONE']).strip() if 'PHONE' in df.columns else ""
 
             cursor.execute('''
                 INSERT INTO students (student_id, name, phone) 
                 VALUES (%s, %s, %s)
                 ON CONFLICT (student_id) DO NOTHING;
             ''', (student_id, name, phone))
-            
+
+
         conn.commit()
         print("✅ Successfully synchronized 1,763 student records from Excel to Supabase!")
     except Exception as e:
