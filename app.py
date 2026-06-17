@@ -8,8 +8,8 @@ from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 
-# Your correct working database connection string
-DATABASE_URL = "postgresql://postgres.otdnicspqedsfsqmsjso:Nrkdiet%406676@aws-0-ap-south-1.pooler.supabase.com:6543/postgres?sslmode=require"
+# 📋 The updated active Mumbai transaction connection string
+DATABASE_URL = "postgresql://postgres.ujjoynqjmzuurefkapbu:Diet2025%23DIET@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
 
 def get_db_connection():
     return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
