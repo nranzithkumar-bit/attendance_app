@@ -1,6 +1,6 @@
 import os
 import datetime
-import pandas as pd  # 👈 Make sure this is imported at the top
+import pandas as pd  
 from flask import Flask, request, render_template_string, Response
 import psycopg2
 from psycopg2.extras import RealDictCursor
@@ -37,46 +37,58 @@ def init_cloud_db():
     conn.commit()
     cursor.close()
     conn.close()
+    print("✅ Database initialized successfully!")
 
 def seed_students_from_excel():
     excel_file = "students.xlsx"
     
     if not os.path.exists(excel_file):
-        print("❌ students.xlsx not found in project directory.")
+        print("❌ CRITICAL: students.xlsx was NOT found in the Render project folder!")
         return
 
-    print("⏳ Reading students.xlsx and synchronizing with Supabase...")
-    df = pd.read_excel(excel_file)
+    print("⏳ DETECTED: students.xlsx found! Attempting to read columns...")
     
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
     try:
-	# Loop through each student in your Excel rows
+        df = pd.read_excel(excel_file)
+        # 🔎 This line prints the exact column names the server sees into your logs:
+        print(f"📋 ACTUAL EXCEL COLUMNS SEEN BY SERVER: {list(df.columns)}")
+        print(f"📊 TOTAL ROWS IN EXCEL SHEET: {len(df)}")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        inserted_count = 0
         for index, row in df.iterrows():
-            # These must match your new ALL-CAPS Excel column headers exactly!
-            student_id = str(row['STUDENT_ID']).strip().upper()
-            name = str(row['STUDENT_NAME']).strip()
-            phone = str(row['PHONE']).strip() if 'PHONE' in df.columns else ""
+            # Standardizing keys to uppercase to match your strategy
+            student_id = str(row.get('STUDENT_ID', '')).strip().upper()
+            name = str(row.get('STUDENT_NAME', '')).strip()
+            phone = str(row.get('PHONE', '')).strip()
+
+            if not student_id or student_id == 'NAN':
+                continue
 
             cursor.execute('''
                 INSERT INTO students (student_id, name, phone) 
                 VALUES (%s, %s, %s)
                 ON CONFLICT (student_id) DO NOTHING;
             ''', (student_id, name, phone))
-
-
+            inserted_count += 1
+            
         conn.commit()
-        print("✅ Successfully synchronized 1,763 student records from Excel to Supabase!")
+        print(f"🚀 SUCCESS: Processed {inserted_count} student loops successfully!")
+        
     except Exception as e:
-        print(f"❌ Error seeding database: {e}")
+        print(f"💥 CRITICAL ERROR DURING EXCEL IMPORT: {str(e)}")
     finally:
-        cursor.close()
-        conn.close()
+        if 'cursor' in locals(): cursor.close()
+        if 'conn' in locals(): conn.close()
+
+# 🌍 RUN ON BOOT (This forces execution on both Local machine and Render server)
+init_cloud_db()
+seed_students_from_excel()
 
 # ... keep your standard @app.route paths here unchanged ...
 
 if __name__ == '__main__':
-    init_cloud_db()
-    seed_students_from_excel()  # 👈 This forces synchronization on startup
-    app.run(debug=False)
+    # Local fallback execution fallback engine
+    app.run(debug=True)
