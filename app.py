@@ -254,5 +254,16 @@ def student_count():
     return f"Total students in database: {count}"
 
 
+
+
+
+@app.route('/check-file')
+def check_file():
+    import os
+    return str(os.path.exists("students.xlsx"))
+
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
