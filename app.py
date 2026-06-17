@@ -265,5 +265,17 @@ def check_file():
 
 
 
+@app.route('/student_file_info')
+def student_file_info():
+    import os
+
+    if os.path.exists("students.xlsx"):
+        return f"FOUND: {os.path.getsize('students.xlsx')} bytes"
+    else:
+        return "NOT FOUND"
+
+
+
+
 if __name__ == '__main__':
     app.run(debug=True)
