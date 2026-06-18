@@ -39,7 +39,7 @@ def init_cloud_db():
     conn.commit()
     cursor.close()
     conn.close()
-    print("✅ Database initialized successfully!")
+    print("Base dados inicializada com sucesso!")
 
 
 def seed_students_from_excel():
@@ -169,25 +169,25 @@ HTML_TEMPLATE = """
                         <tbody>
                             {% for row in late_comers %}
                             <tr>
-                                <td><strong>{{ row.student_id }}</strong></td>
-                                <td>{{ row.student_name }}</td>
-                                <td><span class="badge bg-light text-dark">{{ row.branch if row.branch and row.branch != 'nan' else '-' }}</span></td>
-                                <td><span class="badge bg-light text-dark">{{ row.section if row.section and row.section != 'nan' else '-' }}</span></td>
-                                <td class="text-muted small">{{ row.student_phone if row.student_phone and row.student_phone != 'nan' else '-' }}</td>
+                                <td><strong>{{ row['student_id'] }}</strong></td>
+                                <td>{{ row['student_name'] }}</td>
+                                <td><span class="badge bg-light text-dark">{{ row['branch'] if row['branch'] and row['branch'] != 'nan' else '-' }}</span></td>
+                                <td><span class="badge bg-light text-dark">{{ row['section'] if row['section'] and row['section'] != 'nan' else '-' }}</span></td>
+                                <td class="text-muted small">{{ row['student_phone'] if row['student_phone'] and row['student_phone'] != 'nan' else '-' }}</td>
                                 <td class="text-center fw-bold text-danger">
-                                    <span class="bg-danger-subtle px-2 py-1 rounded">{{ row.late_days }} Days</span>
+                                    <span class="bg-danger-subtle px-2 py-1 rounded">{{ row['late_days'] }} Days</span>
                                 </td>
                                 <td class="text-center">
-                                    {% if row.late_days >= 3 %}
+                                    {% if row['late_days'] >= 3 %}
                                         <span class="badge badge-danger p-2 fw-bold">🔴 Suspension Call</span>
-                                    {% elif row.late_days == 2 %}
+                                    {% elif row['late_days'] == 2 %}
                                         <span class="badge badge-warning p-2 fw-bold text-dark">⚠️ 2nd Warning</span>
                                     {% else %}
                                         <span class="badge badge-warning p-2 fw-semibold text-dark">1st Warning</span>
                                     {% endif %}
                                 </td>
-                                <td class="small">{{ row.last_date.strftime('%d-%m-%Y') if row.last_date else '-' }}</td>
-                                <td class="text-primary small fw-semibold">{{ row.last_time.strftime('%I:%M %p') if row.last_time else '-' }}</td>
+                                <td class="small">{{ row['last_date'].strftime('%d-%m-%Y') if row['last_date'] else '-' }}</td>
+                                <td class="text-primary small fw-semibold">{{ row['last_time'].strftime('%I:%M %p') if row['last_time'] else '-' }}</td>
                             </tr>
                             {% endfor %}
                         </tbody>
@@ -199,14 +199,12 @@ HTML_TEMPLATE = """
 </div>
 
 <script>
-    // Handles automated barcode network scanner posts asynchronously
     $('#attendance-form').on('submit', function() {
         let studentId = $('#student_id').val();
-        $('#student_id').val(''); // Instantly flush input box for next barcode scan row
+        $('#student_id').val(''); 
         
         $.post('/log_late', { student_id: studentId }, function(data) {
             let msgBox = $('#status-message');
-            let badgeStyle = data.late_count >= 3 ? 'danger' : 'warning';
             let actionText = data.late_count >= 3 ? '⚠️ CRITICAL ACTION: HOD Suspension Call issued.' : '1st Warning issued';
             if(data.late_count == 2) actionText = '⚠️ 2nd Warning issued';
 
@@ -222,7 +220,6 @@ HTML_TEMPLATE = """
                 </div>
             `).fadeIn();
             
-            // Wait 2.5 seconds after a barcode flash, then update dashboard row layout components
             setTimeout(function() { window.location.reload(); }, 2500);
         }).fail(function(err) {
             let errorMsg = err.responseJSON ? err.responseJSON.message : "Network transaction validation failed.";
@@ -248,7 +245,6 @@ def index():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # 🌟 Explicitly gathering s.branch and s.section from relational keys
     cursor.execute('''
         SELECT 
             s.student_id, 
@@ -279,7 +275,6 @@ def log_late():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    # Fetch details with explicit branch and section
     cursor.execute('SELECT student_name, branch, section, student_phone FROM students WHERE student_id = %s;', (student_id,))
     student = cursor.fetchone()
     
@@ -288,12 +283,10 @@ def log_late():
         conn.close()
         return jsonify({"status": "error", "message": f"Student ID '{student_id}' not recognized in DIET Database."}), 404
 
-    # Log entry layout details
     today = datetime.date.today()
     now_time = datetime.datetime.now().time()
     cursor.execute('INSERT INTO late_entries (student_id, date, time) VALUES (%s, %s, %s);', (student_id, today, now_time))
     
-    # Calculate rolling count sums
     cursor.execute('SELECT COUNT(*) FROM late_entries WHERE student_id = %s;', (student_id,))
     late_count = cursor.fetchone()['count']
     
