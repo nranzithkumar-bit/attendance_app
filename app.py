@@ -1,7 +1,7 @@
 import os
 import datetime
 import pandas as pd  
-from flask import Flask, request, render_template_string, jsonify
+from flask import Flask, request, render_template_string, jsonify, Response
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -245,6 +245,7 @@ def index():
     conn = get_db_connection()
     cursor = conn.cursor()
     
+    # 🎯 Changed 's.phone' to 's.student_phone' to match your schema precisely
     cursor.execute('''
         SELECT 
             s.student_id, 
@@ -266,6 +267,7 @@ def index():
     conn.close()
     
     return render_template_string(HTML_TEMPLATE, late_comers=late_comers)
+
 
 
 @app.route('/log_late', methods=['POST'])
@@ -305,5 +307,50 @@ def log_late():
     })
 
 
+
+# ... right below your @app.route('/log_late') function block ...
+
+@app.route('/download_csv')
+def download_csv():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT 
+            s.student_id, 
+            s.student_name, 
+            s.branch, 
+            s.section, 
+            s.student_phone,
+            COUNT(le.id) as late_days
+        FROM late_entries le
+        JOIN students s ON le.student_id = s.student_id
+        GROUP BY s.student_id, s.student_name, s.branch, s.section, s.student_phone
+        ORDER BY late_days DESC;
+    ''')
+    
+    records = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    csv_data = "Student ID,Student Name,Branch,Section,Phone,Late Days\n"
+    for row in records:
+        csv_data += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['student_phone']},{row['late_days']}\n"
+        
+    return Response(
+        csv_data,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=late_comers_report.csv"}
+    )
+
+# 🌟 KEEP THIS AS THE ABSOLUTE LAST TWO LINES OF YOUR FILE:
 if __name__ == '__main__':
     app.run(debug=True)
+
+
+
+
+
+
+
+
