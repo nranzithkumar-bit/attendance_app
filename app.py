@@ -7,12 +7,17 @@ from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 
-# 📋 The active Mumbai connection string (with %23 for '#' encoding)
-DATABASE_URL = "postgresql://postgres.ujjoynqjmzuurefkapbu:Diet2025%23DIET@aws-1-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL environment variable not found")
 
 def get_db_connection():
-    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
-
+    return psycopg2.connect(
+        DATABASE_URL,
+        cursor_factory=RealDictCursor
+    )
 
 def init_cloud_db():
     conn = get_db_connection()
@@ -21,7 +26,7 @@ def init_cloud_db():
         CREATE TABLE IF NOT EXISTS students (
             student_id VARCHAR(50) PRIMARY KEY,
             student_name VARCHAR(100) NOT NULL,
-            student_phone VARCHAR(20),
+            phone VARCHAR(20),
             branch VARCHAR(50),
             section VARCHAR(50)
         );
@@ -51,18 +56,18 @@ def seed_students_from_excel():
         cursor = conn.cursor()
         inserted_count = 0
         for index, row in df.iterrows():
-            student_id = str(row.get('STUDENT_ID', '')).strip().upper()
-            student_name = str(row.get('STUDENT_NAME', '')).strip()
-            phone = str(row.get('PHONE', row.get('STUDENT_PHONE', ''))).strip()
-            branch = str(row.get('BRANCH', '')).strip()
-            section = str(row.get('SECTION', '')).strip()
+            student_id = str(row.get('student_id', '')).strip().upper()
+            student_name = str(row.get('student_name', '')).strip()
+            phone = str(row.get('phone', '')).strip()
+            branch = str(row.get('branch', '')).strip()
+            section = str(row.get('section', '')).strip()
             if not student_id or student_id == 'NAN':
                 continue
             cursor.execute('''
-                INSERT INTO students (student_id, student_name, student_phone, branch, section) 
+                INSERT INTO students (student_id, student_name, phone, branch, section) 
                 VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (student_id) 
-                DO UPDATE SET branch = EXCLUDED.branch, section = EXCLUDED.section;
+                ON CONFLICT (student_id)
+                DO UPDATE SET student_name = EXCLUDED.student_name, phone = EXCLUDED.phone, branch = EXCLUDED.branch, section = EXCLUDED.section;
             ''', (student_id, student_name, phone, branch, section))
             inserted_count += 1
         conn.commit()
@@ -158,7 +163,7 @@ HTML_TEMPLATE = """
                                 <td>{{ row['student_name'] }}</td>
                                 <td><span class="badge bg-light text-dark">{{ row['branch'] if row['branch'] and row['branch'] != 'nan' else '-' }}</span></td>
                                 <td><span class="badge bg-light text-dark">{{ row['section'] if row['section'] and row['section'] != 'nan' else '-' }}</span></td>
-                                <td class="text-muted small">{{ row['student_phone'] if row['student_phone'] and row['student_phone'] != 'nan' else '-' }}</td>
+                                <td class="text-muted small">{{ row['phone'] if row['phone'] and row['phone'] != 'nan' else '-' }}</td>
                                 <td class="text-center fw-bold text-danger">
                                     <span class="bg-danger-subtle px-2 py-1 rounded">{{ row['late_days'] }} Days</span>
                                 </td>
@@ -241,11 +246,11 @@ def index():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT s.student_id, s.student_name, s.branch, s.section, s.student_phone,
+        SELECT s.student_id, s.student_name, s.branch, s.section, s.phone,
                COUNT(le.id) as late_days, MAX(le.date) as last_date, MAX(le.time) as last_time
         FROM late_entries le
         JOIN students s ON le.student_id = s.student_id
-        GROUP BY s.student_id, s.student_name, s.branch, s.section, s.student_phone
+        GROUP BY s.student_id, s.student_name, s.branch, s.section, s.phone
         ORDER BY last_date DESC, last_time DESC;
     ''')
     late_comers = cursor.fetchall()
@@ -260,7 +265,7 @@ def log_late():
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT student_name, branch, section, student_phone FROM students WHERE student_id = %s;', (student_id,))
+    cursor.execute('SELECT student_name, branch, section, phone FROM students WHERE student_id = %s;', (student_id,))
     student = cursor.fetchone()
     
     if not student:
@@ -317,10 +322,10 @@ def download_csv():
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute('''
-        SELECT s.student_id, s.student_name, s.branch, s.section, s.student_phone, COUNT(le.id) as late_days
+        SELECT s.student_id, s.student_name, s.branch, s.section, s.phone, COUNT(le.id) as late_days
         FROM late_entries le
         JOIN students s ON le.student_id = s.student_id
-        GROUP BY s.student_id, s.student_name, s.branch, s.section, s.student_phone
+        GROUP BY s.student_id, s.student_name, s.branch, s.section, s.phone
         ORDER BY late_days DESC;
     ''')
     records = cursor.fetchall()
@@ -331,7 +336,7 @@ def download_csv():
     for row in records:
         # Match fine conditions inside exported excel records column fields
         status = "Pay Rs 100 Fine" if row['late_days'] >= 3 else f"Warning {row['late_days']}"
-        csv_data += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['student_phone']},{row['late_days']},{status}\n"
+        csv_data += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['phone']},{row['late_days']},{status}\n"
         
     return Response(
         csv_data,
