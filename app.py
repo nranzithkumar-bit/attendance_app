@@ -1,5 +1,6 @@
 import os
 import datetime
+import pytz
 import pandas as pd  
 from flask import Flask, request, render_template_string, jsonify, Response
 import psycopg2
@@ -8,7 +9,6 @@ from psycopg2.extras import RealDictCursor
 app = Flask(__name__)
 
 DATABASE_URL = os.environ.get("DATABASE_URL")
-
 
 if not DATABASE_URL:
     raise ValueError("DATABASE_URL environment variable not found")
@@ -78,14 +78,10 @@ def seed_students_from_excel():
         if 'conn' in locals(): conn.close()
 
 
-# Run DB sync on startup safely
 init_cloud_db()
 seed_students_from_excel()
 
 
-# --------------------------------------------------------------------------------------
-# HTML UI TEMPLATE STRING WITH LIVE REPORT DOWNLOADING AND ALERT HANDLERS
-# --------------------------------------------------------------------------------------
 HTML_TEMPLATE = """
 <!DOCTYPE html>
 <html lang="en">
@@ -102,6 +98,7 @@ HTML_TEMPLATE = """
         .table th { background-color: #f8f9fa; color: #495057; font-weight: 600; text-transform: uppercase; font-size: 0.8rem; }
         .badge-warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
         .badge-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .btn-processing { opacity: 0.8; cursor: not-allowed; }
     </style>
 </head>
 <body>
@@ -114,7 +111,7 @@ HTML_TEMPLATE = """
         </div>
         <div class="d-flex gap-2">
             <a href="/download_csv" class="btn btn-success fw-semibold btn-sm px-3 d-flex align-items-center gap-1">📥 Download Report (CSV)</a>
-            <button class="btn btn-light fw-semibold btn-sm px-3 text-primary" onclick="window.location.reload();">🔄 Refresh Page</button>
+            <button class="btn btn-light fw-semibold btn-sm px-3 text-primary" id="refresh-btn" onclick="refreshPage()">🔄 Refresh Page</button>
         </div>
     </div>
 </nav>
@@ -127,9 +124,8 @@ HTML_TEMPLATE = """
                 <form id="attendance-form" onsubmit="return false;">
                     <label class="form-label text-muted fw-semibold small">TYPE STUDENT ID</label>
                     <input type="text" id="student_id" name="student_id" class="form-control form-control-lg border-primary mb-3" placeholder="Enter Roll Number / ID..." autofocus required autocomplete="off">
-                    <button type="submit" class="btn btn-primary btn-lg w-100 fw-bold">Log Entry & Verify</button>
+                    <button type="submit" id="submit-btn" class="btn btn-primary btn-lg w-100 fw-bold">Log Entry & Verify</button>
                 </form>
-
                 <div id="status-message" class="mt-4" style="display: none;"></div>
             </div>
         </div>
@@ -189,20 +185,30 @@ HTML_TEMPLATE = """
 </div>
 
 <script>
+    // Bug 3 Fix: Refresh button
+    function refreshPage() {
+        $('#refresh-btn').text('🔄 Refreshing...').prop('disabled', true);
+        window.location.href = window.location.href;
+    }
+
+    // Bug 1 Fix: Button Processing animation
     $('#attendance-form').on('submit', function() {
         let studentId = $('#student_id').val().trim();
         if(!studentId) return;
-        
+
+        // Show Processing on button
+        let btn = $('#submit-btn');
+        btn.text('⏳ Processing...').prop('disabled', true).addClass('btn-processing');
+
         $('#student_id').val(''); 
         
         $.post('/log_late', { student_id: studentId }, function(data) {
             let msgBox = $('#status-message');
             
-            // Handle duplicate warning block or success updates
             if (data.status === "warning") {
                 msgBox.html(`
                     <div class="alert alert-warning p-3 rounded-3 border-0 shadow-sm fw-bold text-dark">
-                        ⚠️ Already logged in for today!
+                        ⚠️ ${data.message}
                     </div>
                 `).fadeIn();
             } else {
@@ -220,8 +226,13 @@ HTML_TEMPLATE = """
                     </div>
                 `).fadeIn();
             }
+
+            // Reset button after response
+            btn.text('Log Entry & Verify').prop('disabled', false).removeClass('btn-processing');
+            $('#student_id').focus();
             
             setTimeout(function() { window.location.reload(); }, 2500);
+
         }).fail(function(err) {
             let errorMsg = err.responseJSON ? err.responseJSON.message : "Validation transaction failed.";
             $('#status-message').html(`
@@ -229,6 +240,10 @@ HTML_TEMPLATE = """
                     ❌ ${errorMsg}
                 </div>
             `).fadeIn();
+
+            // Reset button on error too
+            btn.text('Log Entry & Verify').prop('disabled', false).removeClass('btn-processing');
+            $('#student_id').focus();
         });
     });
 </script>
@@ -236,10 +251,6 @@ HTML_TEMPLATE = """
 </body>
 </html>
 """
-
-# --------------------------------------------------------------------------------------
-# BUSINESS ROUTE VIEWS CONTROLLERS
-# --------------------------------------------------------------------------------------
 
 @app.route('/')
 def index():
@@ -273,12 +284,12 @@ def log_late():
         conn.close()
         return jsonify({"status": "error", "message": f"ID '{student_id}' not recognized."}), 404
 
-    # ⏱️ 1. TIME CHECK: Define the 9:01 AM threshold
-    now = datetime.datetime.now()
-    now_time = now.time()
-    cutoff_time = datetime.time(9, 1, 0) # 09:01:00 AM
+    # Bug 2 Fix: IST timezone
+    IST = pytz.timezone('Asia/Kolkata')
+    now = datetime.datetime.now(IST)
+    now_time = now.time().replace(tzinfo=None)
+    cutoff_time = datetime.time(9, 1, 0)
     
-    # If the student scans BEFORE 9:01 AM, block it because they are ON TIME!
     if now_time < cutoff_time:
         cursor.close()
         conn.close()
@@ -287,8 +298,7 @@ def log_late():
             "message": f"Student is ON TIME. Late logging starts from 09:01 AM. (Scanned at {now_time.strftime('%I:%M %p')})"
         })
 
-    # 🎯 2. DUPLICATE CHECK: Verify if already logged today
-    today = datetime.date.today()
+    today = now.date()
     cursor.execute('SELECT id FROM late_entries WHERE student_id = %s AND date = %s;', (student_id, today))
     already_logged = cursor.fetchone()
     
@@ -297,7 +307,6 @@ def log_late():
         conn.close()
         return jsonify({"status": "warning", "message": "Already logged in for today!"})
 
-    # 3. LOG LATE ENTRY: If they are late and haven't scanned today yet
     cursor.execute('INSERT INTO late_entries (student_id, date, time) VALUES (%s, %s, %s);', (student_id, today, now_time))
     
     cursor.execute('SELECT COUNT(*) FROM late_entries WHERE student_id = %s;', (student_id,))
@@ -334,7 +343,6 @@ def download_csv():
     
     csv_data = "Student ID,Student Name,Branch,Section,Phone,Late Days,Action Status\n"
     for row in records:
-        # Match fine conditions inside exported excel records column fields
         status = "Pay Rs 100 Fine" if row['late_days'] >= 3 else f"Warning {row['late_days']}"
         csv_data += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['phone']},{row['late_days']},{status}\n"
         
