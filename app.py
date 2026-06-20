@@ -339,6 +339,10 @@ def download_csv():
     cursor = conn.cursor()
 
 
+
+
+
+
     cursor.execute('''
         SELECT s.student_id, s.student_name, s.branch, s.section, s.phone, COUNT(le.id) as late_days, MAX((le.date::text || ' ' || le.time::text)::timestamp) as last_entry
         FROM late_entries le
@@ -346,8 +350,6 @@ def download_csv():
         GROUP BY s.student_id, s.student_name, s.branch, s.section, s.phone
         ORDER BY last_entry DESC;
     ''')
-
-
     records = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -356,7 +358,14 @@ def download_csv():
     for row in records:
         status = "Pay Rs 100 Fine" if row['late_days'] >= 3 else f"Warning {row['late_days']}"
         csv_data += f"{row['student_id']},{row['student_name']},{row['branch']},{row['section']},{row['phone']},{row['late_days']},{status}\n"
-        
+
+
+
+
+
+
+
+
     return Response(
         csv_data,
         mimetype="text/csv",
