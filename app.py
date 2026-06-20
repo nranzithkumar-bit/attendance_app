@@ -256,14 +256,22 @@ HTML_TEMPLATE = """
 def index():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+
+
     cursor.execute('''
         SELECT s.student_id, s.student_name, s.branch, s.section, s.phone,
-               COUNT(le.id) as late_days, MAX(le.date) as last_date, MAX(le.time) as last_time
+               COUNT(le.id) as late_days,
+               MAX(le.date) as last_date,
+               MAX(le.time) as last_time,
+               MAX((le.date::text || ' ' || le.time::text)::timestamp) as last_entry
         FROM late_entries le
         JOIN students s ON le.student_id = s.student_id
         GROUP BY s.student_id, s.student_name, s.branch, s.section, s.phone
-        ORDER BY last_date DESC, last_time DESC;
+        ORDER BY last_entry DESC;
     ''')
+
+
     late_comers = cursor.fetchall()
     cursor.close()
     conn.close()
@@ -288,7 +296,7 @@ def log_late():
     IST = pytz.timezone('Asia/Kolkata')
     now = datetime.datetime.now(IST)
     now_time = now.time().replace(tzinfo=None)
-    cutoff_time = datetime.time(9, 1, 0)
+    cutoff_time = datetime.time(9, 1, 0) # = 09:01:00 AM
     
     if now_time < cutoff_time:
         cursor.close()
@@ -325,18 +333,21 @@ def log_late():
         "late_count": late_count
     })
 
-
 @app.route('/download_csv')
 def download_csv():
     conn = get_db_connection()
     cursor = conn.cursor()
+
+
     cursor.execute('''
-        SELECT s.student_id, s.student_name, s.branch, s.section, s.phone, COUNT(le.id) as late_days
+        SELECT s.student_id, s.student_name, s.branch, s.section, s.phone, COUNT(le.id) as late_days, MAX((le.date::text || ' ' || le.time::text)::timestamp) as last_entry
         FROM late_entries le
         JOIN students s ON le.student_id = s.student_id
         GROUP BY s.student_id, s.student_name, s.branch, s.section, s.phone
-        ORDER BY late_days DESC;
+        ORDER BY last_entry DESC;
     ''')
+
+
     records = cursor.fetchall()
     cursor.close()
     conn.close()
